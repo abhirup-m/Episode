@@ -9,7 +9,6 @@ def getEpisode(episode):
     malId = None
     ajaxUrl = None
     ep = None
-    proc = None
     for t in nextPage:
         if "var malId = " in t.get_text():
             lines = t.get_text().split("\n")

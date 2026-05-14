@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import json
 
-import Nanime
+import Nanime, Zoro
 
 def main(inputFile):
     inputs = []
@@ -43,4 +43,5 @@ def main(inputFile):
         subprocess.Popen(("aria2c", "--summary-interval=0", "-c", "--lowest-speed-limit=50K", "-m0", "-i", "/tmp/links.txt", "-d", os.path.join(Path.home(), name))).wait()
     
 
-main(sys.argv[1])
+Zoro.getEpisode(sys.argv[1])
+# main(sys.argv[1])
