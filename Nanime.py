@@ -38,8 +38,7 @@ def getEpisode(episode):
 
 def getShow(parentUrl):
     soup = bs(rq.get(parentUrl).content, "html.parser")
-    nameTag = soup.find("h1", attrs={"class": "entry-title"}).text
-    name = "-".join(nameTag.replace(": ", ":").replace(":", " ").split(" "))
+    name = soup.find("h1", attrs={"class": "entry-title"}).text
     ep = 0
     links = []
     while True:

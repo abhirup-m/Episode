@@ -6,6 +6,10 @@ import json
 
 import Nanime, Zoro
 
+
+def SanitizeName(name):
+    return "-".join(name.replace(": ", ":").replace(":", " ").split(" "))
+
 def main(inputFile):
     inputs = []
     with open(inputFile, "r") as f:
@@ -14,7 +18,7 @@ def main(inputFile):
         links = []
         name = None
         cache = {}
-        cacheFile = os.path.join(Path.home(), "mineAnimeCache.json")
+        cacheFile = os.path.join(Path.home(), "EpisodeCache.json")
         if os.path.isfile(cacheFile):
             with open(cacheFile, 'r') as f:
                 cache = json.load(f)
@@ -22,14 +26,14 @@ def main(inputFile):
                     links = cache[mainUrl]["links"]
                     name = cache[mainUrl]["name"]
                 else:
-                    links, name = Nanime.getShow(mainUrl)
+                    links, name = Zoro.getShow(mainUrl)
                     links = [l for l in links if not l == None]
                     if len(links) > 0:
                         cache[mainUrl] = {"links": links, "name": name}
                     else:
                         continue
         else:
-            links, name = Nanime.getShow(mainUrl)
+            links, name = Zoro.getShow(mainUrl)
             links = [l for l in links if not l == None]
             if len(links) > 0:
                 cache[mainUrl] = {"links": links, "name": name}
@@ -39,9 +43,9 @@ def main(inputFile):
             json.dump(cache, f)
         with open("/tmp/links.txt", "w") as f:
             f.write("\n".join(links))
+        name = SanitizeName(name)
         os.makedirs(name, exist_ok=True)
-        subprocess.Popen(("aria2c", "--summary-interval=0", "-c", "--lowest-speed-limit=50K", "-m0", "-i", "/tmp/links.txt", "-d", os.path.join(Path.home(), name))).wait()
+        subprocess.run(("aria2c", "--summary-interval=0", "-c", "--lowest-speed-limit=50K", "-m0", "-i", "/tmp/links.txt", "-d", os.path.join(Path.home(), name)))
     
 
-Zoro.getEpisode(sys.argv[1])
-# main(sys.argv[1])
+main(sys.argv[1])
