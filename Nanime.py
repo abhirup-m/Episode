@@ -1,8 +1,9 @@
 import requests as rq
 from bs4 import BeautifulSoup as bs
+from concurrent.futures import ThreadPoolExecutor
 import json
 
-def downloader(episode):
+def getEpisode(episode):
     soup = bs(rq.get(episode).content, "html.parser")
     nextPage = soup.find_all("script")
     malId = None
@@ -34,3 +35,24 @@ def downloader(episode):
         else:
             print(episode + ": Download links not available.")
     return
+
+
+def getShow(parentUrl):
+    soup = bs(rq.get(parentUrl).content, "html.parser")
+    nameTag = soup.find("h1", attrs={"class": "entry-title"}).text
+    name = "-".join(nameTag.replace(": ", ":").replace(":", " ").split(" "))
+    ep = 0
+    links = []
+    while True:
+        epItem = soup.find("li", attrs={"data-index": ep})
+        if epItem is None:
+            break
+        else:
+            ep += 1
+            links.append(epItem.find("a")["href"])
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(getEpisode, link)
+            for link in links
+        ]
+    return [f.result() for f in futures], name
