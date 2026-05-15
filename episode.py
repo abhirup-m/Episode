@@ -1,3 +1,4 @@
+import argparse
 import requests as rq
 from bs4 import BeautifulSoup as bs
 import subprocess
@@ -10,13 +11,14 @@ import Nanime, Zoro
 
 CALLERS = {"9anime.org.lv": Nanime, "zorotv": Zoro}
 CACHE_PATH = "EpisodesCache"
+GLOBAL_URL = "https://9anime.org.lv/anime/"
 
 def SanitizeName(name):
     return "-".join(name.replace(": ", ":").replace(":", " ").split(" "))
 
 
-def updateDatabse(globalUrl):
-    r = rq.get(globalUrl)
+def updateDatabse():
+    r = rq.get(GLOBAL_URL)
     soup = bs(r.content)
     groups = soup.find("ul", attrs={"class": "ulclear az-list"})
     database = {}
@@ -35,10 +37,20 @@ def updateDatabse(globalUrl):
                 break
             else:
                 t = next_page
+    os.makedirs(os.path.join(Path.home(), CACHE_PATH), exist_ok=True)
+    showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
+    with open(showsCacheFile, 'w') as f:
+        json.dump(database, f)
     return database
 
 
-def search(phrase, database):
+def search(phrase):
+    showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
+    if os.path.isfile(showsCacheFile):
+        with open(showsCacheFile, 'r') as f:
+            database = json.load(f)
+    else:
+        updateDatabse()
     matches = []
     for (title, link) in database.items():
         if phrase.lower() in title.lower():
@@ -47,54 +59,64 @@ def search(phrase, database):
         print(i, ": ", match[0])
     response = input("Enter number to select match, or enter anything else to exit. ")
     try:
-        return matches[int(response)]
+        getShow(matches[int(response)][1])
     except:
         return
 
-def main(inputFile):
+
+def getShow(mainUrl):
+    links = []
+    name = None
+    episodesCache = {}
+    episodesCacheFile = os.path.join(Path.home(), CACHE_PATH, "episodeLinks.json")
+    if os.path.isfile(episodesCacheFile):
+        with open(episodesCacheFile, 'r') as f:
+            episodesCache = json.load(f)
+            if mainUrl in episodesCache:
+                links = episodesCache[mainUrl]["links"]
+                name = episodesCache[mainUrl]["name"]
+    if len(links) == 0:
+        links, name = [v for (k, v) in CALLERS.items() if k in mainUrl][0].getShow(mainUrl)
+        links = [l for l in links if not l == None]
+        if len(links) > 0:
+            episodesCache[mainUrl] = {"links": links, "name": name}
+        else:
+            print("No download links found.")
+            return
+    with open(episodesCacheFile, 'w') as f:
+        json.dump(episodesCache, f)
+    with open("/tmp/links.txt", "w") as f:
+        f.write("\n".join(links))
+    name = SanitizeName(name)
+    os.makedirs(os.path.join(Path.home(), name), exist_ok=True)
+    subprocess.run((
+        "aria2c",
+        "--summary-interval=0",
+        "-c",
+        "--lowest-speed-limit=50K",
+        "-m0",
+        "-i",
+        "/tmp/links.txt",
+        "-d",
+        os.path.join(Path.home(), name)
+        ))
+
+def fromFile(inputFile):
     inputs = []
     with open(inputFile, "r") as f:
         inputs = f.read().strip().split("\n")
     for mainUrl in inputs:
-        links = []
-        name = None
-        episodesCache = {}
-        os.makedirs(os.path.join(Path.home(), CACHE_PATH), exist_ok=True)
-        episodesCacheFile = os.path.join(Path.home(), CACHE_PATH, "episodeLinks.json")
-        showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
-        # database = {}
-        database = updateDatabse("https://9anime.org.lv/anime/")
-        with open(showsCacheFile, 'w') as f:
-            json.dump(database, f)
-        if os.path.isfile(showsCacheFile):
-            with open(showsCacheFile, 'r') as f:
-                database = json.load(f)
-        match = search(mainUrl, database)
-        if match is None:
-            return
-        else:
-            mainUrl = match[1]
-        if os.path.isfile(episodesCacheFile):
-            with open(episodesCacheFile, 'r') as f:
-                episodesCache = json.load(f)
-                if mainUrl in episodesCache:
-                    links = episodesCache[mainUrl]["links"]
-                    name = episodesCache[mainUrl]["name"]
-        if len(links) == 0:
-            links, name = [v for (k, v) in CALLERS.items() if k in mainUrl][0].getShow(mainUrl)
-            links = [l for l in links if not l == None]
-            if len(links) > 0:
-                episodesCache[mainUrl] = {"links": links, "name": name}
-            else:
-                print("No download links found.")
-                continue
-        with open(episodesCacheFile, 'w') as f:
-            json.dump(episodesCache, f)
-        with open("/tmp/links.txt", "w") as f:
-            f.write("\n".join(links))
-        name = SanitizeName(name)
-        os.makedirs(name, exist_ok=True)
-        subprocess.run(("aria2c", "--summary-interval=0", "-c", "--lowest-speed-limit=50K", "-m0", "-i", "/tmp/links.txt", "-d", os.path.join(Path.home(), name)))
+        getShow(mainUrl)
     
-# updateDatabse()
-main(sys.argv[1])
+
+parser = argparse.ArgumentParser(prog='ProgramName', description='What the program does', epilog='Text at the bottom of help')
+parser.add_argument('-s')
+parser.add_argument('-i')
+parser.add_argument('-u', action='store_true')
+args = parser.parse_args()
+if args.u:
+    updateDatabse()
+if args.s is not None:
+    search(args.s)
+if args.i is not None:
+    fromFile(args.i)
