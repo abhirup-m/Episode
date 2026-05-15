@@ -21,12 +21,20 @@ def updateDatabse(globalUrl):
     groups = soup.find("ul", attrs={"class": "ulclear az-list"})
     database = {}
     for t in groups.find_all("a"):
-        print(t.text)
-        r = rq.get(t["href"])
-        soup = bs(r.content)
-        for show in soup.find_all("div", attrs={"class": "bsx"}):
-            link = show.find("a")
-            database[link["title"]] = link["href"]
+        while True:
+            r = rq.get(t["href"])
+            soup = bs(r.content)
+            for show in soup.find_all("div", attrs={"class": "bsx"}):
+                link = show.find("a")
+                database[link["title"]] = link["href"]
+            curr_page = soup.find("span", attrs={"class": "page-numbers current"})
+            if curr_page is None:
+                break
+            next_page = soup.find("a", string=str(int(curr_page.text) + 1))
+            if next_page is None:
+                break
+            else:
+                t = next_page
     return database
 
 
@@ -54,10 +62,10 @@ def main(inputFile):
         os.makedirs(os.path.join(Path.home(), CACHE_PATH), exist_ok=True)
         episodesCacheFile = os.path.join(Path.home(), CACHE_PATH, "episodeLinks.json")
         showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
-        database = {}
-        # database = updateDatabse("https://9anime.org.lv/anime/")
-        # with open(showsCacheFile, 'w') as f:
-        #     json.dump(database, f)
+        # database = {}
+        database = updateDatabse("https://9anime.org.lv/anime/")
+        with open(showsCacheFile, 'w') as f:
+            json.dump(database, f)
         if os.path.isfile(showsCacheFile):
             with open(showsCacheFile, 'r') as f:
                 database = json.load(f)
