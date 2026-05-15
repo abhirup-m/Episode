@@ -51,17 +51,25 @@ def search(phrase):
             database = json.load(f)
     else:
         updateDatabse()
-    matches = []
-    for (title, link) in database.items():
-        if phrase.lower() in title.lower():
-            matches.append((title, link))
-    for (i, match) in enumerate(matches):
-        print(i, ": ", match[0])
-    response = input("Enter number to select match, or enter anything else to exit. ")
-    try:
-        getShow(matches[int(response)][1])
-    except:
-        return
+    catches = []
+    while True:
+        matches = []
+        for (title, link) in database.items():
+            if phrase.lower() in title.lower():
+                matches.append((title, link))
+        for (i, match) in enumerate(matches):
+            print(i, ": ", match[0])
+        response = input("Enter number to select match. Enter anything else to exit. --> ")
+        catches.append(matches[int(response)][1])
+        response = input("You selected \"{}\".\nEnter d to start downloading. Enter s to search again and add to bucket. Enter q to quit. --> ".format(matches[int(response)][0]))
+        if response == "d":
+            break
+        if response == "s":
+            phrase = input("Enter phrase to search for: ")
+        if response == "q":
+            return
+    for link in catches:
+        getShow(link)
 
 
 def getShow(mainUrl):
@@ -89,17 +97,33 @@ def getShow(mainUrl):
         f.write("\n".join(links))
     name = SanitizeName(name)
     os.makedirs(os.path.join(Path.home(), name), exist_ok=True)
-    subprocess.run((
-        "aria2c",
-        "--summary-interval=0",
-        "-c",
-        "--lowest-speed-limit=50K",
-        "-m0",
-        "-i",
-        "/tmp/links.txt",
-        "-d",
-        os.path.join(Path.home(), name)
-        ))
+    cmd = (
+            "aria2c",
+            "--summary-interval=0",
+            "-c",
+            "--lowest-speed-limit=50K",
+            # "-q",
+            "--console-log-level=notice",
+            "--log-level=notice",
+            "-m0",
+            "-x16",
+            "-s16",
+            "-k1M",
+            "--log=/tmp/{}-log".format(name),
+            "--input-file=/tmp/links.txt",
+            "--dir={}".format(os.path.join(Path.home(), name)),
+            )
+    tries = 1
+    while tries < 10:
+        proc = subprocess.run(cmd)
+
+        if proc.returncode != 0:
+            print("Errors happened in download. Trying again.")
+            tries += 1
+            continue
+        else:
+            break
+
 
 def fromFile(inputFile):
     inputs = []
