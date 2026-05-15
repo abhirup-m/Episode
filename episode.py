@@ -30,6 +30,19 @@ def updateDatabse(globalUrl):
     return database
 
 
+def search(phrase, database):
+    matches = []
+    for (title, link) in database.items():
+        if phrase.lower() in title.lower():
+            matches.append((title, link))
+    for (i, match) in enumerate(matches):
+        print(i, ": ", match[0])
+    response = input("Enter number to select match, or enter anything else to exit. ")
+    try:
+        return matches[int(response)]
+    except:
+        return
+
 def main(inputFile):
     inputs = []
     with open(inputFile, "r") as f:
@@ -41,9 +54,18 @@ def main(inputFile):
         os.makedirs(os.path.join(Path.home(), CACHE_PATH), exist_ok=True)
         episodesCacheFile = os.path.join(Path.home(), CACHE_PATH, "episodeLinks.json")
         showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
-        database = updateDatabse("https://9anime.org.lv/anime/")
-        with open(showsCacheFile, 'w') as f:
-            json.dump(database, f)
+        database = {}
+        # database = updateDatabse("https://9anime.org.lv/anime/")
+        # with open(showsCacheFile, 'w') as f:
+        #     json.dump(database, f)
+        if os.path.isfile(showsCacheFile):
+            with open(showsCacheFile, 'r') as f:
+                database = json.load(f)
+        match = search(mainUrl, database)
+        if match is None:
+            return
+        else:
+            mainUrl = match[1]
         if os.path.isfile(episodesCacheFile):
             with open(episodesCacheFile, 'r') as f:
                 episodesCache = json.load(f)
