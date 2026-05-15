@@ -1,4 +1,5 @@
 import argparse
+from tqdm import tqdm
 import requests as rq
 from bs4 import BeautifulSoup as bs
 import subprocess
@@ -11,32 +12,23 @@ import Nanime, Zoro
 
 CALLERS = {"9anime.org.lv": Nanime, "zorotv": Zoro}
 CACHE_PATH = "EpisodesCache"
-GLOBAL_URL = "https://9anime.org.lv/anime/"
+GLOBAL_URLs = ["https://zorotv.com.ro/anime/list-mode/", "https://9anime.org.lv/anime/list-mode/"]
 
 def SanitizeName(name):
     return "-".join(name.replace(": ", ":").replace(":", " ").split(" "))
 
 
+
 def updateDatabse():
-    r = rq.get(GLOBAL_URL)
-    soup = bs(r.content)
-    groups = soup.find("ul", attrs={"class": "ulclear az-list"})
     database = {}
-    for t in groups.find_all("a"):
-        while True:
-            r = rq.get(t["href"])
-            soup = bs(r.content)
-            for show in soup.find_all("div", attrs={"class": "bsx"}):
-                link = show.find("a")
-                database[link["title"]] = link["href"]
-            curr_page = soup.find("span", attrs={"class": "page-numbers current"})
-            if curr_page is None:
-                break
-            next_page = soup.find("a", string=str(int(curr_page.text) + 1))
-            if next_page is None:
-                break
+    for url in GLOBAL_URLs:
+        r = rq.get(url)
+        soup = bs(r.content, "html.parser")
+        for link in tqdm(soup.find_all("a", attrs={"class": "series tip"})):
+            if link.text in database:
+                database[link.text].append(link["href"])
             else:
-                t = next_page
+                database[link.text] = [link["href"]]
     os.makedirs(os.path.join(Path.home(), CACHE_PATH), exist_ok=True)
     showsCacheFile = os.path.join(Path.home(), CACHE_PATH, "showLinks.json")
     with open(showsCacheFile, 'w') as f:
