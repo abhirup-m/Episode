@@ -1,4 +1,5 @@
 import argparse
+from urllib import parse
 from tqdm import tqdm
 import requests as rq
 from bs4 import BeautifulSoup as bs
@@ -62,6 +63,78 @@ def search(phrase):
             return
     for link in catches:
         getShow(link)
+
+
+def searchTorrent(phrase):
+    r = rq.get("https://nyaa.si/?f=1&c=1_3&q=" + parse.quote(phrase) + "&s=comments&o=desc")
+    soup = bs(r.content, "html.parser")
+    while True:
+        links = []
+        names = []
+        count = 1
+        for t in soup.find_all("tr", attrs={"class": "success"}):
+            size = None
+            for a in t.find_all("a"):
+                if a["title"].strip() == a.text.strip():
+                    names.append(a["title"].strip())
+                    break
+            for a in t.find_all("a"):
+                if a["href"].startswith("magnet:?"):
+                    links.append(a["href"])
+                    size = a.find_next("td").text
+                    break
+            seeds = t.find_all("td")[-3].text
+            leeches = t.find_all("td")[-2].text
+            print(str(count) + ".\t S: " + seeds + ", L: " + leeches + ", \t" + size + ",\t " + names[-1])
+            count += 1
+        for t in soup.find_all("tr", attrs={"class": "default"}):
+            size = None
+            for a in t.find_all("a"):
+                if a["title"].strip() == a.text.strip():
+                    names.append(a["title"].strip())
+                    break
+            for a in t.find_all("a"):
+                if a["href"].startswith("magnet:?"):
+                    links.append(a["href"])
+                    size = a.find_next("td").text
+                    break
+            seeds = t.find_all("td")[-3].text
+            leeches = t.find_all("td")[-2].text
+            print(str(count) + ".\t S: " + seeds + ", L: " + leeches + ", \t" + size + ",\t " + names[-1])
+            count += 1
+        choice = input("Enter number to download. Enter 0 to search again. Enter anything else to quit. ")
+        try:
+            choice = int(choice)
+            if choice == 0:
+                phrase = input("Enter phrase to search for: ")
+                continue
+            elif 0 < choice <= len(links):
+                return links[choice - 1], names[choice - 1]
+            else:
+                return
+        except:
+            return
+
+
+def getTorrent(phrase):
+    link, name = searchTorrent(phrase)
+    cmd = (
+            "aria2c",
+            "--summary-interval=0",
+            "-c",
+            "--lowest-speed-limit=50K",
+            # "-q",
+            "--console-log-level=notice",
+            "--log-level=notice",
+            "-m0",
+            "-x16",
+            "-s16",
+            "-k1M",
+            "--log=/tmp/{}-log".format(name),
+            "--dir={}".format(os.path.join(Path.home(), name)),
+            link
+            )
+    subprocess.run(cmd)
 
 
 def getShow(mainUrl):
@@ -129,7 +202,10 @@ parser = argparse.ArgumentParser(prog='ProgramName', description='What the progr
 parser.add_argument('-s')
 parser.add_argument('-i')
 parser.add_argument('-u', action='store_true')
+parser.add_argument('-t')
 args = parser.parse_args()
+if args.t:
+    getTorrent(args.t)
 if args.u:
     updateDatabse()
 if args.s is not None:
