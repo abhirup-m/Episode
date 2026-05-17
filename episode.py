@@ -1,4 +1,5 @@
 import argparse
+from pathvalidate import sanitize_filename
 from urllib import parse
 from tqdm import tqdm
 import requests as rq
@@ -14,10 +15,6 @@ import Nanime, Zoro
 CALLERS = {"9anime.org.lv": Nanime, "zorotv": Zoro}
 CACHE_PATH = "EpisodesCache"
 GLOBAL_URLs = ["https://zorotv.com.ro/anime/list-mode/", "https://9anime.org.lv/anime/list-mode/"]
-
-def SanitizeName(name):
-    return "-".join(name.replace(": ", ":").replace(":", " ").split(" "))
-
 
 
 def updateDatabse():
@@ -66,12 +63,13 @@ def search(phrase):
 
 
 def searchTorrent(phrase):
-    r = rq.get("https://nyaa.si/?f=1&c=1_3&q=" + parse.quote(phrase) + "&s=comments&o=desc")
-    soup = bs(r.content, "html.parser")
+    finalLinks = []
     while True:
         links = []
         names = []
         count = 1
+        r = rq.get("https://nyaa.si/?f=1&c=1_0&q=" + parse.quote(phrase) + "&s=comments&o=desc")
+        soup = bs(r.content, "html.parser")
         for t in soup.find_all("tr", attrs={"class": "success"}):
             size = None
             for a in t.find_all("a"):
@@ -102,37 +100,48 @@ def searchTorrent(phrase):
             leeches = t.find_all("td")[-2].text
             print(str(count) + ".\t S: " + seeds + ", L: " + leeches + ", \t" + size + ",\t " + names[-1])
             count += 1
-        choice = input("Enter number to download. Enter 0 to search again. Enter anything else to quit. ")
+        choice = input("Enter number to download. Enter anything else to quit. ")
         try:
             choice = int(choice)
-            if choice == 0:
-                phrase = input("Enter phrase to search for: ")
-                continue
-            elif 0 < choice <= len(links):
-                return links[choice - 1], names[choice - 1]
+            if 0 < choice <= len(links):
+                finalLinks.append((links[choice - 1], names[choice - 1]))
+                response = input("Enter d to start downloading. Enter r to search again. Enter anything else to quit. ")
+                if response == "d":
+                    break
+                elif response == "r":
+                    phrase = input("Enter phrase to search for: ")
+                    continue
+                else:
+                    return
             else:
                 return
         except:
             return
+    return finalLinks
 
 
 def getTorrent(phrase):
-    link, name = searchTorrent(phrase)
+    finalLinks = searchTorrent(phrase)
+    if finalLinks is None:
+        return
+    inputFile = "\n".join([str(l) + "\n\tdir=" + os.path.join(Path.home(), sanitize_filename(n)) for (l, n) in finalLinks])
+    open("/tmp/links.txt", "w").write(inputFile)
+
     cmd = (
             "aria2c",
             "--summary-interval=0",
             "-c",
             "--lowest-speed-limit=50K",
-            # "-q",
             "--console-log-level=notice",
             "--log-level=notice",
             "-m0",
             "-x16",
             "-s16",
             "-k1M",
-            "--log=/tmp/{}-log".format(name),
-            "--dir={}".format(os.path.join(Path.home(), name)),
-            link
+            "-j4",
+            "--seed-time=0",
+            "--log=/tmp/episodes-log",
+            "--input-file=/tmp/links.txt",
             )
     subprocess.run(cmd)
 
@@ -160,7 +169,7 @@ def getShow(mainUrl):
         json.dump(episodesCache, f)
     with open("/tmp/links.txt", "w") as f:
         f.write("\n".join(links))
-    name = SanitizeName(name)
+    name = sanitize_filename(name)
     os.makedirs(os.path.join(Path.home(), name), exist_ok=True)
     cmd = (
             "aria2c",
